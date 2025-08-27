@@ -22,20 +22,24 @@ def calculate_rsi(data, window=14):
     rsi = 100 - (100 / (1 + rs))
     return rsi
 
-# --- File Downloader ---
+# --- File Downloader with Debugging ---
 def download_file_from_url(url, save_path):
+    st.write(f"Attempting to download file from: {url}")
     if not os.path.exists(save_path):
-        st.info(f"Downloading {os.path.basename(save_path)}... Please wait.")
         try:
             response = requests.get(url, stream=True)
-            response.raise_for_status() # Raise an exception for bad status codes
+            response.raise_for_status()
             with open(save_path, "wb") as f:
                 for chunk in response.iter_content(chunk_size=8192):
                     f.write(chunk)
-            st.success(f"Downloaded {os.path.basename(save_path)} successfully.")
+            st.success(f"File '{save_path}' downloaded.")
+            st.write(f"File size: {os.path.getsize(save_path)} bytes.")
         except requests.exceptions.RequestException as e:
-            st.error(f"Error downloading {os.path.basename(save_path)}: {e}")
+            st.error(f"Error downloading {save_path}: {e}")
             return False
+    else:
+        st.info(f"File '{save_path}' already exists.")
+        st.write(f"File size: {os.path.getsize(save_path)} bytes.")
     return True
 
 # --- Load Saved Objects ---
@@ -45,17 +49,22 @@ def load_app_models():
     SCALER_URL = "https://github.com/dev-kumar12/Stock-Trend-Prediction-with-NLP/releases/download/v1.0/scaler.pkl"
     MODEL_PATH = "lstm_model.keras"
     SCALER_PATH = "scaler.pkl"
-    
-    model_exists = download_file_from_url(MODEL_URL, MODEL_PATH)
-    scaler_exists = download_file_from_url(SCALER_URL, SCALER_PATH)
 
-    if model_exists and scaler_exists:
+    st.info("Attempting to load models...")
+    model_downloaded = download_file_from_url(MODEL_URL, MODEL_PATH)
+    scaler_downloaded = download_file_from_url(SCALER_URL, SCALER_PATH)
+
+    if model_downloaded and scaler_downloaded:
+        st.success("All required files are present. Attempting to load into memory.")
         model = load_model(MODEL_PATH)
         scaler = joblib.load(SCALER_PATH)
         return model, scaler
     else:
-        st.error("Could not load model or scaler. Please check the URLs and refresh.")
+        st.error("Could not download necessary files. App cannot proceed.")
         st.stop()
+
+# --- The rest of the app code is the same... ---
+# (The functions below are not changed)
 
 @st.cache_data
 def get_stock_data(ticker):
@@ -88,22 +97,19 @@ def get_finbert_sentiment(text_list, tokenizer, model):
     predictions = torch.nn.functional.softmax(outputs.logits, dim=-1)
     return [model.config.id2label[label_id] for label_id in torch.argmax(predictions, dim=1).tolist()]
 
-# --- Streamlit App ---
+# --- Main Streamlit App Logic ---
 st.title("Reliance Industries Stock Trend Predictor")
-st.write("This app uses a Deep Learning (LSTM) model to predict the next day's stock price based on historical prices, technical indicators, and the sentiment of recent news.")
+st.write("This app uses a Deep Learning (LSTM) model to predict the next day's stock price.")
 
 if st.button("Predict Tomorrow's Trend"):
-    with st.spinner("Running prediction pipeline... This may take a few minutes the first time."):
-        
-        # --- THE FIX IS HERE ---
-        st.info("Step 1: Fetching latest stock and news data...") # Added missing quote
+    model, scaler = load_app_models() # This will now run our debug downloader
+    
+    with st.spinner("Running prediction pipeline..."):
+        st.info("Fetching and processing data...")
         stock_df = get_stock_data("RELIANCE.NS")
-        model, scaler = load_app_models()
-        
         stock_df.columns = stock_df.columns.get_level_values(0)
         news_df = get_news_data('Reliance Industries')
 
-        st.info("Step 2: Calculating technical indicators and news sentiment...")
         stock_df['SMA_14'] = stock_df['Close'].rolling(window=14).mean()
         stock_df['RSI_14'] = calculate_rsi(stock_df)
         
@@ -117,8 +123,7 @@ if st.button("Predict Tomorrow's Trend"):
         today_sentiment = news_df['sentiment_score'].mean()
         if pd.isna(today_sentiment): today_sentiment = 0.0
 
-        st.info("Step 3: Preparing data sequence for the LSTM model...")
-        
+        st.info("Preparing data sequence for the LSTM model...")
         stock_df_with_sentiment = stock_df.copy()
         stock_df_with_sentiment['sentiment_score'] = today_sentiment
         stock_df_with_sentiment.dropna(inplace=True)
@@ -129,7 +134,7 @@ if st.button("Predict Tomorrow's Trend"):
         scaled_sequence = scaler.transform(last_60_days)
         X_pred = np.array([scaled_sequence])
 
-        st.info("Step 4: Making the final prediction...")
+        st.info("Making the final prediction...")
         prediction_scaled = model.predict(X_pred)
 
         dummy_pred = np.zeros((1, len(model_features)))
