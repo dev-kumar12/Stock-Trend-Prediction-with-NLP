@@ -4,13 +4,21 @@ import numpy as np
 import joblib
 import yfinance as yf
 from gnews import GNews
-import pandas_ta as ta
 import re
 from nltk.stem import WordNetLemmatizer
 from nltk.corpus import stopwords
 from transformers import AutoTokenizer, BertForSequenceClassification
 import torch
 from tensorflow.keras.models import load_model
+
+# --- Helper Function for RSI ---
+def calculate_rsi(data, window=14):
+    delta = data['Close'].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=window).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=window).mean()
+    rs = gain / loss
+    rsi = 100 - (100 / (1 + rs))
+    return rsi
 
 # --- Load Saved Objects ---
 @st.cache_resource
@@ -65,11 +73,9 @@ if st.button("Predict Tomorrow's Trend"):
         news_df = get_news_data('Reliance Industries')
 
         st.info("Step 2: Calculating technical indicators and news sentiment...")
-        stock_df.ta.sma(length=14, append=True)
-        stock_df.ta.rsi(length=14, append=True)
-        
-        # --- FIX 1: Standardize all column names to lowercase ---
-        stock_df.columns = stock_df.columns.str.lower()
+        # --- FIX: Calculate indicators manually with pandas ---
+        stock_df['SMA_14'] = stock_df['Close'].rolling(window=14).mean()
+        stock_df['RSI_14'] = calculate_rsi(stock_df)
         
         news_df['cleaned_title'] = news_df['title'].apply(clean_text)
         tokenizer, finbert_model = get_finbert_model()
@@ -87,8 +93,7 @@ if st.button("Predict Tomorrow's Trend"):
         stock_df_with_sentiment['sentiment_score'] = today_sentiment
         stock_df_with_sentiment.dropna(inplace=True)
         
-        # --- FIX 2: Use lowercase feature names to match the standardized columns ---
-        model_features = ['close', 'volume', 'sma_14', 'rsi_14', 'sentiment_score']
+        model_features = ['Close', 'Volume', 'SMA_14', 'RSI_14', 'sentiment_score']
         last_60_days = stock_df_with_sentiment[model_features].tail(60).values
         
         scaled_sequence = scaler.transform(last_60_days)
@@ -97,14 +102,12 @@ if st.button("Predict Tomorrow's Trend"):
         st.info("Step 4: Making the final prediction...")
         prediction_scaled = model.predict(X_pred)
 
-        # We need to create a dummy array with the correct number of features for the scaler
         dummy_pred = np.zeros((1, len(model_features)))
-        dummy_pred[:, 0] = prediction_scaled # Assuming 'close' is the first feature
+        dummy_pred[:, 0] = prediction_scaled
         prediction_actual = scaler.inverse_transform(dummy_pred)[0, 0]
 
         st.success("Prediction Complete!")
-        # --- FIX 3: Use the lowercase 'close' column to get the last price ---
-        last_close_price = stock_df['close'].iloc[-1]
+        last_close_price = stock_df['Close'].iloc[-1]
         
         col1, col2 = st.columns(2)
         col1.metric(label="Last Closing Price", value=f"₹{last_close_price:.2f}")
