@@ -41,14 +41,11 @@ def download_file_from_url(url, save_path):
 # --- Load Saved Objects ---
 @st.cache_resource
 def load_app_models():
-    # --- YOUR GITHUB RELEASE URLs ---
     MODEL_URL = "https://github.com/dev-kumar12/Stock-Trend-Prediction-with-NLP/releases/download/v1.0/lstm_model.keras"
     SCALER_URL = "https://github.com/dev-kumar12/Stock-Trend-Prediction-with-NLP/releases/download/v1.0/scaler.pkl"
-
     MODEL_PATH = "lstm_model.keras"
     SCALER_PATH = "scaler.pkl"
-
-    # Download files if they don't exist
+    
     model_exists = download_file_from_url(MODEL_URL, MODEL_PATH)
     scaler_exists = download_file_from_url(SCALER_URL, SCALER_PATH)
 
@@ -59,7 +56,6 @@ def load_app_models():
     else:
         st.error("Could not load model or scaler. Please check the URLs and refresh.")
         st.stop()
-
 
 @st.cache_data
 def get_stock_data(ticker):
@@ -99,4 +95,55 @@ st.write("This app uses a Deep Learning (LSTM) model to predict the next day's s
 if st.button("Predict Tomorrow's Trend"):
     with st.spinner("Running prediction pipeline... This may take a few minutes the first time."):
         
-        st.info("Step 1: Fetching latest stock
+        # --- THE FIX IS HERE ---
+        st.info("Step 1: Fetching latest stock and news data...") # Added missing quote
+        stock_df = get_stock_data("RELIANCE.NS")
+        model, scaler = load_app_models()
+        
+        stock_df.columns = stock_df.columns.get_level_values(0)
+        news_df = get_news_data('Reliance Industries')
+
+        st.info("Step 2: Calculating technical indicators and news sentiment...")
+        stock_df['SMA_14'] = stock_df['Close'].rolling(window=14).mean()
+        stock_df['RSI_14'] = calculate_rsi(stock_df)
+        
+        news_df['cleaned_title'] = news_df['title'].apply(clean_text)
+        tokenizer, finbert_model = get_finbert_model()
+        sentiments = get_finbert_sentiment(news_df['cleaned_title'].tolist(), tokenizer, finbert_model)
+        news_df['finbert_sentiment'] = sentiments
+        
+        sentiment_map = {'positive': 1, 'neutral': 0, 'negative': -1}
+        news_df['sentiment_score'] = news_df['finbert_sentiment'].map(sentiment_map)
+        today_sentiment = news_df['sentiment_score'].mean()
+        if pd.isna(today_sentiment): today_sentiment = 0.0
+
+        st.info("Step 3: Preparing data sequence for the LSTM model...")
+        
+        stock_df_with_sentiment = stock_df.copy()
+        stock_df_with_sentiment['sentiment_score'] = today_sentiment
+        stock_df_with_sentiment.dropna(inplace=True)
+        
+        model_features = ['Close', 'Volume', 'SMA_14', 'RSI_14', 'sentiment_score']
+        last_60_days = stock_df_with_sentiment[model_features].tail(60).values
+        
+        scaled_sequence = scaler.transform(last_60_days)
+        X_pred = np.array([scaled_sequence])
+
+        st.info("Step 4: Making the final prediction...")
+        prediction_scaled = model.predict(X_pred)
+
+        dummy_pred = np.zeros((1, len(model_features)))
+        dummy_pred[:, 0] = prediction_scaled
+        prediction_actual = scaler.inverse_transform(dummy_pred)[0, 0]
+
+        st.success("Prediction Complete!")
+        last_close_price = stock_df['Close'].iloc[-1]
+        
+        col1, col2 = st.columns(2)
+        col1.metric(label="Last Closing Price", value=f"₹{last_close_price:.2f}")
+        col2.metric(label="Predicted Price for Tomorrow", value=f"₹{prediction_actual:.2f}", delta=f"₹{prediction_actual - last_close_price:.2f}")
+
+        if prediction_actual > last_close_price:
+            st.write("### Conclusion: The model predicts the stock price will **GO UP** tomorrow. 📈")
+        else:
+            st.write("### Conclusion: The model predicts the stock price will **GO DOWN** tomorrow. 📉")
