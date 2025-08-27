@@ -1,6 +1,6 @@
 streamlit
 pandas
-numpy
+numpy==1.23.5
 yfinance
 gnews
 pandas-ta
