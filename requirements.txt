@@ -1,0 +1,13 @@
+streamlit
+pandas
+numpy
+yfinance
+gnews
+pandas-ta
+nltk
+scikit-learn
+tensorflow
+torch
+transformers
+joblib
+filelock
