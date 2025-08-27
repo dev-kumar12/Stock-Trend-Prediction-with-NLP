@@ -10,8 +10,6 @@ from nltk.corpus import stopwords
 from transformers import AutoTokenizer, BertForSequenceClassification
 import torch
 from tensorflow.keras.models import load_model
-import requests
-import os
 
 # --- Helper Function for RSI ---
 def calculate_rsi(data, window=14):
@@ -22,49 +20,12 @@ def calculate_rsi(data, window=14):
     rsi = 100 - (100 / (1 + rs))
     return rsi
 
-# --- File Downloader with Debugging ---
-def download_file_from_url(url, save_path):
-    st.write(f"Attempting to download file from: {url}")
-    if not os.path.exists(save_path):
-        try:
-            response = requests.get(url, stream=True)
-            response.raise_for_status()
-            with open(save_path, "wb") as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    f.write(chunk)
-            st.success(f"File '{save_path}' downloaded.")
-            st.write(f"File size: {os.path.getsize(save_path)} bytes.")
-        except requests.exceptions.RequestException as e:
-            st.error(f"Error downloading {save_path}: {e}")
-            return False
-    else:
-        st.info(f"File '{save_path}' already exists.")
-        st.write(f"File size: {os.path.getsize(save_path)} bytes.")
-    return True
-
-# --- Load Saved Objects ---
+# --- Load Saved Objects (Simplified) ---
 @st.cache_resource
 def load_app_models():
-    MODEL_URL = "https://github.com/dev-kumar12/Stock-Trend-Prediction-with-NLP/releases/download/v1.0/lstm_model.keras"
-    SCALER_URL = "https://github.com/dev-kumar12/Stock-Trend-Prediction-with-NLP/releases/download/v1.0/scaler.pkl"
-    MODEL_PATH = "lstm_model.keras"
-    SCALER_PATH = "scaler.pkl"
-
-    st.info("Attempting to load models...")
-    model_downloaded = download_file_from_url(MODEL_URL, MODEL_PATH)
-    scaler_downloaded = download_file_from_url(SCALER_URL, SCALER_PATH)
-
-    if model_downloaded and scaler_downloaded:
-        st.success("All required files are present. Attempting to load into memory.")
-        model = load_model(MODEL_PATH)
-        scaler = joblib.load(SCALER_PATH)
-        return model, scaler
-    else:
-        st.error("Could not download necessary files. App cannot proceed.")
-        st.stop()
-
-# --- The rest of the app code is the same... ---
-# (The functions below are not changed)
+    model = load_model('lstm_model.keras')
+    scaler = joblib.load('scaler.pkl')
+    return model, scaler
 
 @st.cache_data
 def get_stock_data(ticker):
@@ -101,10 +62,12 @@ def get_finbert_sentiment(text_list, tokenizer, model):
 st.title("Reliance Industries Stock Trend Predictor")
 st.write("This app uses a Deep Learning (LSTM) model to predict the next day's stock price.")
 
+# Load models at the start
+model, scaler = load_app_models()
+
 if st.button("Predict Tomorrow's Trend"):
-    model, scaler = load_app_models() # This will now run our debug downloader
-    
     with st.spinner("Running prediction pipeline..."):
+        
         st.info("Fetching and processing data...")
         stock_df = get_stock_data("RELIANCE.NS")
         stock_df.columns = stock_df.columns.get_level_values(0)
