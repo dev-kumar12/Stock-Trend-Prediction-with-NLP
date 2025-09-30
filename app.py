@@ -12,53 +12,38 @@ import torch
 from tensorflow.keras.models import load_model
 from datetime import date, timedelta
 import nltk
-import os # Import the os library
-
-# --- DEBUGGING STEP AT THE VERY TOP ---
-st.write("### Debugging: Files in the current directory")
-try:
-    st.write(os.listdir('.'))
-except Exception as e:
-    st.write(f"Could not list files: {e}")
-# --- END DEBUGGING STEP ---
-
+import os
 
 # --- ALL HELPER FUNCTIONS ---
 @st.cache_resource
 def load_app_models():
-    model = load_model('lstm_model.keras')
+    # --- FINAL FIX: Load the .h5 file ---
+    model = load_model('lstm_model.h5')
     scaler = joblib.load('scaler.pkl')
     return model, scaler
 
-# ... (The rest of your app.py code is exactly the same as the last version) ...
-# (The functions below are not changed)
-
 @st.cache_data
 def get_live_stock_data(ticker):
-    """Fetches the last 1 year of stock data."""
     end_date = date.today() + timedelta(days=1)
     start_date = end_date - timedelta(days=365)
     return yf.download(ticker, start=start_date, end=end_date)
 
 @st.cache_data
 def get_live_news_data(query):
-    """Fetches news from the last 3 days."""
     google_news = GNews(language='en', country='IN', period='3d')
     news = google_news.get_news(query)
     return pd.DataFrame(news) if news else pd.DataFrame()
 
 @st.cache_resource
 def get_finbert_model():
-    """Loads the FinBERT model and tokenizer from Hugging Face."""
-    tokenizer = AutoTokenizer.from_pretrained("ProsusAI/finbert")
-    model = BertForSequenceClassification.from_pretrained("ProsusAI/finbert")
     nltk.download('stopwords', quiet=True)
     nltk.download('wordnet', quiet=True)
     nltk.download('omw-1.4', quiet=True)
-    return tokenizer, model
+    tokenizer = AutoTokenizer.from_pretrained("ProsusAI/finbert")
+    model = BertForSequenceClassification.from_pretrained("ProsusAI/finbert")
+    return model, tokenizer
 
 def clean_text(text):
-    """Cleans a single text string for NLP analysis."""
     lemmatizer = WordNetLemmatizer()
     stop_words = set(stopwords.words('english'))
     if not isinstance(text, str): return ""
@@ -67,16 +52,14 @@ def clean_text(text):
     cleaned_words = [lemmatizer.lemmatize(word) for word in words if word not in stop_words]
     return " ".join(cleaned_words)
 
-def get_finbert_sentiment(text_list, tokenizer, model):
-    """Gets sentiment for a list of texts using the FinBERT model."""
-    inputs = tokenizer(text_list, padding=True, truncation=True, return_tensors="pt", max_length=512)
+def get_finbert_sentiment(text_list, _tokenizer, _model):
+    inputs = _tokenizer(text_list, padding=True, truncation=True, return_tensors="pt", max_length=512)
     with torch.no_grad():
-        outputs = model(**inputs)
+        outputs = _model(**inputs)
     predictions = torch.nn.functional.softmax(outputs.logits, dim=-1)
-    return [model.config.id2label[label_id] for label_id in torch.argmax(predictions, dim=1).tolist()]
+    return [_model.config.id2label[label_id] for label_id in torch.argmax(predictions, dim=1).tolist()]
 
 def calculate_rsi(data, window=14):
-    """Calculates the Relative Strength Index (RSI)."""
     close_prices = data['Close']
     delta = close_prices.diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=window).mean()
