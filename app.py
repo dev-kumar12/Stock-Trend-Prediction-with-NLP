@@ -2,61 +2,80 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
-import yfinance as yf
-from gnews import GNews
-import re
-from nltk.stem import WordNetLemmatizer
-from nltk.corpus import stopwords
-from transformers import AutoTokenizer, BertForSequenceClassification
-import torch
 from tensorflow.keras.models import load_model
-import requests
-import os
-from datetime import date, timedelta
-import nltk
 
-# --- File Downloader ---
-def download_file_from_url(url, save_path):
-    if not os.path.exists(save_path):
-        st.info(f"Downloading {os.path.basename(save_path)}... This may take a moment.")
-        try:
-            response = requests.get(url, stream=True)
-            response.raise_for_status()
-            with open(save_path, "wb") as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    f.write(chunk)
-        except requests.exceptions.RequestException as e:
-            st.error(f"Error downloading {os.path.basename(save_path)}: {e}")
-            return False
-    return True
-
-# --- Load Saved Objects from URL ---
+# --- Load Local Files ---
 @st.cache_resource
 def load_app_models():
-    # --- IMPORTANT: PASTE YOUR GITHUB RELEASE URLs HERE ---
-    MODEL_URL = "https://github.com/dev-kumar12/Stock-Trend-Prediction-with-NLP/releases/download/v1.0/lstm_model.keras"
-    SCALER_URL = "https://github.com/dev-kumar12/Stock-Trend-Prediction-with-NLP/releases/download/v1.0/scaler.pkl"
+    """Loads the pre-trained model and scaler from local files."""
+    model = load_model('lstm_model.h5')
+    scaler = joblib.load('scaler.pkl')
+    return model, scaler
 
-    MODEL_PATH = "lstm_model.h5"
-    SCALER_PATH = "scaler.pkl"
-
-    if download_file_from_url(MODEL_URL, MODEL_PATH) and download_file_from_url(SCALER_URL, SCALER_PATH):
-        model = load_model(MODEL_PATH)
-        scaler = joblib.load(SCALER_PATH)
-        return model, scaler
-    else:
-        st.error("Could not download necessary model/scaler files. App cannot start.")
-        st.stop()
-
-# --- Other Helper Functions ---
-# (The rest of the functions for RSI, news, NLP, etc., are the same)
 @st.cache_data
-def get_live_stock_data(ticker):
-    end_date = date.today() + timedelta(days=1)
-    start_date = end_date - timedelta(days=365)
-    return yf.download(ticker, start=start_date, end=end_date)
-# ... [rest of the helper functions from the last full script]
+def load_master_data():
+    """Loads the single, clean, pre-processed master dataset."""
+    df = pd.read_csv("final_master_dataset.csv")
+    # Robustly handle the date column
+    if 'Unnamed: 0' in df.columns:
+        df = df.rename(columns={'Unnamed: 0': 'Date'})
+    elif 'date' in df.columns:
+         df = df.rename(columns={'date': 'Date'})
+    df['Date'] = pd.to_datetime(df['Date'])
+    df = df.set_index('Date')
+    return df
 
 # --- Main Streamlit App Logic ---
 st.title("Reliance Industries Stock Trend Predictor")
-# ... [rest of the main app logic from the last full script]
+st.write("This app uses a pre-trained LSTM model and a pre-processed historical dataset to demonstrate a prediction for the next trend.")
+
+try:
+    model, scaler = load_app_models()
+    final_df = load_master_data()
+    st.success("Model and historical data loaded successfully!")
+    
+    st.write("### Last 5 Days of Available Data:")
+    st.dataframe(final_df.tail())
+
+    if st.button("Predict Trend Using Latest Available Data"):
+        with st.spinner("Running prediction..."):
+            
+            st.info("Preparing final data sequence...")
+            
+            # Define the features the model was trained on
+            model_features = ['Close', 'Volume', 'SMA_14', 'RSI_14', 'sentiment_score']
+            
+            # Get the last 60 days from our clean dataset
+            last_60_days = final_df[model_features].tail(60).values
+            
+            if last_60_days.shape[0] < 60:
+                st.error(f"Error: The master dataset has less than 60 days of data. Found only {last_60_days.shape[0]} days.")
+            else:
+                # Scale the sequence
+                scaled_sequence = scaler.transform(last_60_days)
+                X_pred = np.array([scaled_sequence])
+
+                st.info("Making the prediction...")
+                prediction_scaled = model.predict(X_pred)
+
+                # Inverse transform the prediction
+                dummy_pred = np.zeros((1, len(model_features)))
+                dummy_pred[:, 0] = prediction_scaled
+                prediction_actual = scaler.inverse_transform(dummy_pred)[0, 0]
+
+                st.success("Prediction Complete!")
+                last_close_price = final_df['Close'].iloc[-1]
+                
+                col1, col2 = st.columns(2)
+                col1.metric(label="Last Available Closing Price", value=f"₹{last_close_price:.2f}")
+                col2.metric(label="Predicted Price for Next Day", value=f"₹{prediction_actual:.2f}", delta=f"₹{prediction_actual - last_close_price:.2f}")
+
+                if prediction_actual > last_close_price:
+                    st.write("### Conclusion: The model predicts the stock price will **GO UP**. 📈")
+                else:
+                    st.write("### Conclusion: The model predicts the stock price will **GO DOWN**. 📉")
+
+except FileNotFoundError as e:
+    st.error(f"A required file was not found. Please make sure `final_master_dataset.csv`, `lstm_model.h5`, and `scaler.pkl` are in the same folder as the app. Missing file: {e.filename}")
+except Exception as e:
+    st.error(f"An unexpected error occurred: {e}")
