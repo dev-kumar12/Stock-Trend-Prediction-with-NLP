@@ -1,0 +1,10 @@
+# Ignore Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Ignore Python cache
+__pycache__/
+
+# Ignore large raw/intermediate data files
+reliance_stock_data_5_years.csv
+reliance_news_data_FULL.csv
+reliance_news_with_finbert_sentiment.csv
