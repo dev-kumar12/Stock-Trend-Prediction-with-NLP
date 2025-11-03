@@ -1,0 +1,53 @@
+# This is the name of your GitHub Action
+name: Run-Notebook-Daily
+
+# This controls WHEN the action runs
+on:
+  # This makes it run every day at 1:00 AM UTC (around 6:30 AM IST)
+  schedule:
+    - cron: '0 1 * * *'
+  # This also lets you run it manually from the "Actions" tab
+  workflow_dispatch:
+
+# This defines WHAT the action does
+jobs:
+  build-and-run:
+    # Use a standard Ubuntu Linux virtual machine
+    runs-on: ubuntu-latest
+    
+    steps:
+      # Step 1: Check out a copy of your repository
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # Step 2: Set up a Python 3.9 environment
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      # Step 3: Install all the libraries
+      # This is the most important step!
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          # We must also install the notebook libraries
+          pip install jupyter nbconvert
+
+      # Step 4: Run the entire Jupyter Notebook
+      - name: Run Data_Collection.ipynb
+        run: |
+          # This command runs your notebook from top to bottom
+          jupyter nbconvert --to notebook --execute Data_Collection.ipynb --output Data_Collection.ipynb --inplace
+
+      # Step 5: Commit the new data files back to GitHub
+      - name: Commit and push new data
+        run: |
+          git config --global user.name 'github-actions'
+          git config --global user.email 'github-actions@github.com'
+          # Add all the files that were created by the notebook
+          git add final_master_dataset.csv lstm_model.h5 scaler.pkl
+          # See if there are any changes to commit
+          git commit -m "Automated daily data update" -a || echo "No changes to commit"
+          # Push the new files back to your repository
+          git push
