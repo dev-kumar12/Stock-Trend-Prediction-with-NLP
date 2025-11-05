@@ -1,7 +1,7 @@
-# Final, version-locked list for cloud deployment
+# Final list for cloud - NumPy 2.0 is allowed
 streamlit
 pandas
-numpy<2
+numpy
 joblib
 tensorflow
 scikit-learn
