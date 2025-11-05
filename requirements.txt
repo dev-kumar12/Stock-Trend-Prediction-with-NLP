@@ -4,3 +4,10 @@ numpy
 joblib
 tensorflow
 scikit-learn
+yfinance
+gnews
+nltk
+transformers
+torch
+jupyter
+nbconvert
