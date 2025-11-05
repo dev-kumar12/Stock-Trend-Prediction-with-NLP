@@ -1,3 +1,4 @@
+# Final, complete list for notebook and app
 streamlit
 pandas
 numpy
