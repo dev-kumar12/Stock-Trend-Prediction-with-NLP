@@ -1,7 +1,7 @@
-# Final, complete list for notebook and app
+# Final, version-locked list for cloud deployment
 streamlit
 pandas
-numpy
+numpy<2
 joblib
 tensorflow
 scikit-learn
