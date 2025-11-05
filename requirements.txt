@@ -1,9 +1,10 @@
-# Final list for cloud - NumPy 2.0 is allowed
+# Final, complete list for cloud deployment
 streamlit
 pandas
 numpy
 joblib
 tensorflow
+h5py
 scikit-learn
 yfinance
 gnews
@@ -12,3 +13,4 @@ transformers
 torch
 jupyter
 nbconvert
+matplotlib
