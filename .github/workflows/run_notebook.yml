@@ -30,6 +30,9 @@ jobs:
       # This is the most important step!
       - name: Install dependencies
         run: |
+          echo "--- START of requirements.txt ---"
+          cat requirements.txt
+          echo "--- END of requirements.txt ---"
           pip install -r requirements.txt
           # We must also install the notebook libraries
           pip install jupyter nbconvert
