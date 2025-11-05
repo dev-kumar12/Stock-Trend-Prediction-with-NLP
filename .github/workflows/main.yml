@@ -1,0 +1,48 @@
+name: Run-Notebook-Daily
+
+on:
+  schedule:
+    - cron: '0 1 * * *' # Runs at 1:00 AM UTC
+  workflow_dispatch: # Allows manual running
+
+jobs:
+  build-and-run:
+    runs-on: ubuntu-latest
+    
+    steps:
+      # Step 1: Check out the LATEST version of your code
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          # This forces it to get the newest commit
+          ref: 'master'
+
+      # Step 2: Set up Python
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      # Step 3: Install dependencies (with debugging)
+      - name: Install dependencies
+        run: |
+          echo "--- Verifying contents of requirements.txt ---"
+          cat requirements.txt
+          echo "--- Starting installation ---"
+          pip install -r requirements.txt
+          pip install jupyter nbconvert
+          echo "--- Installation complete ---"
+
+      # Step 4: Run the notebook
+      - name: Run Data_Collection.ipynb
+        run: |
+          jupyter nbconvert --to notebook --execute Data_Collection.ipynb --output Data_Collection.ipynb --inplace
+
+      # Step 5: Commit the new data
+      - name: Commit and push new data
+        run: |
+          git config --global user.name 'github-actions'
+          git config --global user.email 'github-actions@github.com'
+          git add final_master_dataset.csv lstm_model.h5 scaler.pkl
+          git commit -m "Automated daily data update" -a || echo "No changes to commit"
+          git push
