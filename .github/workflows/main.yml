@@ -2,8 +2,14 @@ name: Run-Notebook-Daily
 
 on:
   schedule:
-    - cron: '0 14 * * *' # Runs at 14:00 AM UTC
-  workflow_dispatch: # Allows manual running
+    # 1. MORNING CHECK: Runs at 1:00 AM UTC (6:30 AM IST). This catches
+    #    any EOD data that was delayed overnight.
+    - cron: '0 1 * * *' 
+    # 2. EVENING FINAL: Runs at 2:00 PM UTC (7:30 PM IST). This captures
+    #    the final, verified closing data immediately after the market closes.
+    - cron: '0 14 * * *'
+  # This still allows manual running when needed
+  workflow_dispatch:
 
 jobs:
   build-and-run:
