@@ -32,13 +32,10 @@ jobs:
       # Step 3: Install dependencies (with debugging)
       - name: Install dependencies
         run: |
-          echo "--- Verifying contents of requirements.txt ---"
-          cat requirements.txt
-          echo "--- Starting installation ---"
-          pip install -r requirements.txt
-          pip install jupyter nbconvert
-          echo "--- Installation complete ---"
-
+          echo "--- Starting optimized installation ---"
+          # Install all dependencies without saving the downloaded files to save disk space
+          pip install -r requirements.txt --no-cache-dir
+          echo "--- Installation complete. Proceeding to run notebook. ---"
       # Step 4: Run the notebook
       - name: Run Data_Collection.ipynb
         run: |
