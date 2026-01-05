@@ -1,38 +1,41 @@
+name: main
+
+on:
+  schedule:
+    - cron: '0 1 * * *'  # 6:30 AM IST
+    - cron: '0 14 * * *' # 7:30 PM IST
+  workflow_dispatch:
+
 jobs:
   build-and-run:
     runs-on: ubuntu-latest
     
     steps:
-      # Step 1: Check out the code
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           ref: 'master'
 
-      # Step 2: Set up Python 3.12 (Crucial for yfinance compatibility)
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
           cache: 'pip'
 
-      # Step 3: Install dependencies without caching to save disk space
       - name: Install dependencies
         run: |
-          echo "--- Starting optimized installation ---"
+          pip install --upgrade pip
           pip install -r requirements.txt --no-cache-dir
-          echo "--- Installation complete ---"
+          pip install jupyter nbconvert
 
-      # Step 4: Run the notebook and update it inplace
       - name: Run Data_Collection.ipynb
         run: |
           jupyter nbconvert --to notebook --execute Data_Collection.ipynb --output Data_Collection.ipynb --inplace
 
-      # Step 5: Save and push the results
-      - name: Commit and push new data
+      - name: Commit and push changes
         run: |
           git config --global user.name 'github-actions'
           git config --global user.email 'github-actions@github.com'
           git add final_master_dataset.csv lstm_model.h5 scaler.pkl
-          git commit -m "Automated daily data update" -a || echo "No changes to commit"
+          git commit -m "Automated daily update" || echo "No changes to commit"
           git push
