@@ -23,11 +23,11 @@ jobs:
           # This forces it to get the newest commit
           ref: 'master'
 
-      # Step 2: Set up Python
-      - name: Set up Python 3.9
+     # Step 2: Set up Python
+      - name: Set up Python 3.10
         uses: actions/setup-python@v5
         with:
-          python-version: '3.9'
+          python-version: '3.10'
 
       # Step 3: Install dependencies (with debugging)
       - name: Install dependencies
