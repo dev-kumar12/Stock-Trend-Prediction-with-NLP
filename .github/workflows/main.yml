@@ -1,51 +1,34 @@
-name: Run-Notebook-Daily
-
-on:
-  schedule:
-    # 1. MORNING CHECK: Runs at 1:00 AM UTC (6:30 AM IST). This catches
-    #    any EOD data that was delayed overnight.
-    - cron: '0 1 * * *' 
-    # 2. EVENING FINAL: Runs at 2:00 PM UTC (7:30 PM IST). This captures
-    #    the final, verified closing data immediately after the market closes.
-    - cron: '0 14 * * *'
-  # This still allows manual running when needed
-  workflow_dispatch:
-
 jobs:
   build-and-run:
     runs-on: ubuntu-latest
     
     steps:
-      # Step 1: Check out the LATEST version of your code
-      - name: Check out repository
-        uses: actions/checkout@v4
-        with:
-          # This forces it to get the newest commit
-          ref: 'master'
-
-    steps:
+      # Step 1: Check out the code
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: 'master'
 
+      # Step 2: Set up Python 3.12 (Crucial for yfinance compatibility)
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-          cache: 'pip' # This helps speed up future runs
+          cache: 'pip'
 
-      # Step 3: Install dependencies (with debugging)
+      # Step 3: Install dependencies without caching to save disk space
       - name: Install dependencies
         run: |
           echo "--- Starting optimized installation ---"
-          # Install all dependencies without saving the downloaded files to save disk space
           pip install -r requirements.txt --no-cache-dir
-          echo "--- Installation complete. Proceeding to run notebook. ---"
-      # Step 4: Run the notebook
+          echo "--- Installation complete ---"
+
+      # Step 4: Run the notebook and update it inplace
       - name: Run Data_Collection.ipynb
         run: |
           jupyter nbconvert --to notebook --execute Data_Collection.ipynb --output Data_Collection.ipynb --inplace
 
-      # Step 5: Commit the new data
+      # Step 5: Save and push the results
       - name: Commit and push new data
         run: |
           git config --global user.name 'github-actions'
